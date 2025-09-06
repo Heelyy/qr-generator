@@ -1,0 +1,22 @@
+{
+  "name": "qr-generator",
+  "version": "1.0.0",
+  "description": "二维码生成器，支持时间控制和管理",
+  "main": "index.html",
+  "scripts": {
+    "build": "echo 'No build step required'"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Heelyy/qr-generator.git"
+  },
+  "keywords": ["qr-code", "generator", "netlify"],
+  "author": "Your Name",
+  "license": "MIT"
+}

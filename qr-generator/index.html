@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>二维码生成器</title>
+    <meta name="description" content="简单易用的二维码生成工具，支持微信扫描和时间控制">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📱</text></svg>">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .app {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 600px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 3em;
+            margin-bottom: 10px;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 1.8em;
+            font-weight: 600;
+        }
+
+        .input-container {
+            position: relative;
+            margin-bottom: 25px;
+        }
+
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 16px 20px;
+            border: 2px solid #e1e5e9;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: #fafbfc;
+        }
+
+        input[type="text"]:focus, input[type="number"]:focus {
+            outline: none;
+            border-color: #667eea;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .time-container {
+            margin-bottom: 25px;
+        }
+
+        .time-container label {
+            display: block;
+            margin-bottom: 12px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .time-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+            justify-content: center;
+        }
+
+        .time-btn {
+            padding: 8px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            background: white;
+            color: #555;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 14px;
+        }
+
+        .time-btn.active {
+            border-color: #667eea;
+            background: #667eea;
+            color: white;
+        }
+
+        .time-btn:hover {
+            border-color: #667eea;
+        }
+
+        .custom-time {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .custom-time.show {
+            display: block;
+        }
+
+        .size-container {
+            margin-bottom: 25px;
+        }
+
+        .size-container label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        select {
+            padding: 12px 16px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 15px;
+            background: white;
+            cursor: pointer;
+            transition: border-color 0.3s ease;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button-group {
+            margin-bottom: 30px;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 28px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 5px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .download-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
+        }
+
+        .download-btn:hover {
+            box-shadow: 0 6px 25px rgba(40, 167, 69, 0.4);
+        }
+
+        .clear-btn {
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+            box-shadow: 0 4px 15px rgba(108, 117, 125, 0.3);
+        }
+
+        .clear-btn:hover {
+            box-shadow: 0 6px 25px rgba(108, 117, 125, 0.4);
+        }
+
+        .qr-container {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            min-height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .qr-placeholder {
+            color: #6c757d;
+            font-size: 14px;
+        }
+
+        .qr-image {
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            animation: fadeIn 0.5s ease;
+            max-width: 100%;
+            height: auto;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .url-display {
+            background: #e9ecef;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            word-break: break-all;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 13px;
+            color: #495057;
+            text-align: left;
+        }
+
+        .active-qrs {
+            background: linear-gradient(135deg, #fff3cd 0%, #ffeaa7 100%);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 25px 0;
+            text-align: left;
+        }
+
+        .active-qrs h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 16px;
+            text-align: center;
+        }
+
+        .qr-item {
+            background: white;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .qr-info {
+            flex: 1;
+            font-size: 14px;
+        }
+
+        .qr-name {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 4px;
+        }
+
+        .qr-stats {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .qr-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .destroy-btn {
+            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            padding: 6px 12px;
+            font-size: 12px;
+            margin: 0;
+        }
+
+        .destroy-btn:hover {
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.4);
+        }
+
+        .tips {
+            background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 25px;
+            text-align: left;
+        }
+
+        .tips h3 {
+            color: #333;
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+
+        .tips ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        .tips li {
+            color: #555;
+            margin-bottom: 8px;
+            padding-left: 20px;
+            position: relative;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .tips li:before {
+            content: "💡";
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+        .loading {
+            display: none;
+            color: #667eea;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+
+        .loading.show {
+            display: block;
+        }
+
+        @media (max-width: 600px) {
+            .app {
+                padding: 25px 20px;
+                margin: 10px;
+            }
+            
+            h1 {
+                font-size: 1.5em;
+            }
+            
+            button {
+                padding: 12px 20px;
+                font-size: 15px;
+                margin: 3px;
+            }
+
+            .time-buttons {
+                justify-content: center;
+            }
+
+            .time-btn {
+                flex: 1;
+                min-width: 80px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app">
+        <div class="logo">📱</div>
+        <h1>二维码生成器</h1>
+
+        <div class="input-container">
+            <input 
+                type="text" 
+                id="contentInput" 
+                placeholder="输入链接或文本内容..."
+                value="https://mp.weixin.qq.com/s/An_W_ekg6eyrdwOrN2yqvw"
+            >
+        </div>
+
+        <div class="time-container">
+            <label>⏰ 有效时间</label>
+            <div class="time-buttons">
+                <button type="button" class="time-btn" data-minutes="5">5分钟</button>
+                <button type="button" class="time-btn active" data-minutes="20">20分钟</button>
+                <button type="button" class="time-btn" data-minutes="30">30分钟</button>
+                <button type="button" class="time-btn" data-minutes="60">1小时</button>
+                <button type="button" class="time-btn" data-minutes="custom">自定义</button>
+            </div>
+            <div class="custom-time" id="customTime">
+                <input type="number" id="customMinutes" placeholder="输入分钟数..." min="1" max="1440">
+            </div>
+        </div>
+
+        <div class="size-container">
+            <label for="sizeSelect">二维码尺寸</label>
+            <select id="sizeSelect">
+                <option value="200">200×200 (小)</option>
+                <option value="300" selected>300×300 (标准)</option>
+                <option value="400">400×400 (大)</option>
+                <option value="500">500×500 (超大)</option>
+            </select>
+        </div>
+
+        <div class="button-group">
+            <button id="generateBtn">
+                📱 生成二维码
+            </button>
+            <button id="downloadBtn" class="download-btn" style="display:none;">
+                📥 下载图片
+            </button>
+            <button class="clear-btn" id="clearBtn">
+                🗑️ 清除
+            </button>
+        </div>
+
+        <div class="loading" id="loading">
+            正在生成二维码...
+        </div>
+
+        <div class="qr-container" id="qrContainer">
+            <div class="qr-placeholder">
+                点击"生成二维码"按钮开始
+            </div>
+        </div>
+
+        <div id="urlDisplay" class="url-display" style="display:none;">
+            <strong>当前内容：</strong><br>
+            <span id="currentContent"></span><br><br>
+            <strong>短链接：</strong><br>
+            <span id="shortUrl"></span><br><br>
+            <strong>有效期至：</strong><br>
+            <span id="expiresAt"></span>
+        </div>
+
+        <div class="active-qrs" id="activeQRs">
+            <h3>🎯 活跃的二维码</h3>
+            <div id="qrList">
+                <div class="qr-placeholder">正在加载...</div>
+            </div>
+        </div>
+
+        <div class="tips">
+            <h3>💡 使用说明</h3>
+            <ul>
+                <li>设置有效时间，到期后二维码自动失效</li>
+                <li>可以手动销毁不需要的二维码</li>
+                <li>支持扫描统计和时间记录</li>
+                <li>微信扫描二维码即可打开链接</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let currentQRData = null;
+        let selectedMinutes = 20; // 默认20分钟
+
+        // 初始化时间选择按钮
+        function initTimeButtons() {
+            document.querySelectorAll('.time-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    const minutes = this.dataset.minutes;
+                    if (minutes === 'custom') {
+                        document.getElementById('customTime').classList.add('show');
+                        selectedMinutes = parseInt(document.getElementById('customMinutes').value) || 20;
+                    } else {
+                        document.getElementById('customTime').classList.remove('show');
+                        selectedMinutes = parseInt(minutes);
+                    }
+                });
+            });
+        }
+
+        // 自定义时间输入
+        function initCustomTimeInput() {
+            document.getElementById('customMinutes').addEventListener('input', function() {
+                selectedMinutes = parseInt(this.value) || 20;
+            });
+        }
+
+        // 生成二维码
+        async function generateQR() {
+            const content = document.getElementById('contentInput').value.trim();
+            const size = document.getElementById('sizeSelect').value;
+            const qrContainer = document.getElementById('qrContainer');
+            const urlDisplay = document.getElementById('urlDisplay');
+            const loading = document.getElementById('loading');
+            const generateBtn = document.getElementById('generateBtn');
+
+            if (!content) {
+                alert('请输入要转换的内容！');
+                return;
+            }
+
+            if (!selectedMinutes || selectedMinutes < 1) {
+                alert('请选择有效时间！');
+                return;
+            }
+
+            // 显示加载状态
+            loading.classList.add('show');
+            generateBtn.disabled = true;
+            qrContainer.innerHTML = '<div class="qr-placeholder">正在生成...</div>';
+
+            try {
+                // 调用后端API创建二维码记录
+                const response = await fetch('/.netlify/functions/create-qr', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        originalUrl: content,
+                        expiresInMinutes: selectedMinutes
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`服务器错误: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('后端响应:', data);
+
+                // 生成二维码图片
+                const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&format=png&data=${encodeURIComponent(data.qrUrl)}`;
+                
+                const imgResponse = await fetch(qrApiUrl);
+                if (!imgResponse.ok) {
+                    throw new Error('二维码图片生成失败');
+                }
+
+                const blob = await imgResponse.blob();
+                const imageUrl = URL.createObjectURL(blob);
+
+                // 显示二维码
+                const img = new Image();
+                img.onload = function() {
+                    loading.classList.remove('show');
+                    generateBtn.disabled = false;
+
+                    img.className = 'qr-image';
+                    img.alt = '生成的二维码';
+                    
+                    qrContainer.innerHTML = '';
+                    qrContainer.appendChild(img);
+
+                    // 保存数据用于下载
+                    currentQRData = {
+                        blob: blob,
+                        name: data.name
+                    };
+
+                    // 显示信息
+                    document.getElementById('currentContent').textContent = content;
+                    document.getElementById('shortUrl').textContent = data.qrUrl;
+                    document.getElementById('expiresAt').textContent = new Date(data.expiresAt).toLocaleString('zh-CN');
+                    urlDisplay.style.display = 'block';
+                    document.getElementById('downloadBtn').style.display = 'inline-block';
+
+                    // 刷新活跃列表
+                    loadActiveQRs();
+                };
+
+                img.onerror = function() {
+                    throw new Error('图片加载失败');
+                };
+
+                img.src = imageUrl;
+
+            } catch (error) {
+                console.error('生成二维码失败:', error);
+                loading.classList.remove('show');
+                generateBtn.disabled = false;
+                qrContainer.innerHTML = '<div class="qr-placeholder" style="color: #dc3545;">生成失败，请重试</div>';
+                alert('生成二维码失败: ' + error.message);
+            }
+        }
+
+        // 下载二维码
+        async function downloadQR() {
+            if (!currentQRData) {
+                alert('请先生成二维码！');
+                return;
+            }
+
+            try {
+                const link = document.createElement('a');
+                link.download = `${currentQRData.name}.png`;
+                link.href = URL.createObjectURL(currentQRData.blob);
+                
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                setTimeout(() => {
+                    URL.revokeObjectURL(link.href);
+                }, 1000);
+                
+                console.log('下载完成！');
+                
+            } catch (error) {
+                console.error('下载失败:', error);
+                alert('下载失败，请右键点击二维码图片选择"图片另存为"');
+            }
+        }
+
+        // 加载活跃的二维码
+        async function loadActiveQRs() {
+            try {
+                const response = await fetch('/.netlify/functions/manage-qr');
+                if (!response.ok) {
+                    throw new Error('获取数据失败');
+                }
+
+                const qrCodes = await response.json();
+                const qrList = document.getElementById('qrList');
+
+                if (!qrCodes || qrCodes.length === 0) {
+                    qrList.innerHTML = '<div class="qr-placeholder">暂无活跃的二维码</div>';
+                    return;
+                }
+
+                qrList.innerHTML = qrCodes.map(qr => {
+                    const expiresAt = new Date(qr.expires_at);
+                    const now = new Date();
+                    const remainingTime = Math.max(0, Math.floor((expiresAt - now) / (1000 * 60)));
+                    
+                    return `
+                        <div class="qr-item">
+                            <div class="qr-info">
+                                <div class="qr-name">${qr.name}</div>
+                                <div class="qr-stats">
+                                    扫描: ${qr.scan_count}次 | 
+                                    剩余: ${remainingTime}分钟 |
+                                    创建: ${new Date(qr.created_at).toLocaleString('zh-CN')}
+                                </div>
+                            </div>
+                            <div class="qr-actions">
+                                <button class="destroy-btn" onclick="destroyQR('${qr.short_code}')">
+                                    销毁
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error('加载活跃二维码失败:', error);
+                document.getElementById('qrList').innerHTML = '<div class="qr-placeholder" style="color: #dc3545;">加载失败</div>';
+            }
+        }
+
+        // 销毁二维码
+        async function destroyQR(shortCode) {
+            if (!confirm('确定要销毁这个二维码吗？此操作不可恢复。')) {
+                return;
+            }
+
+            try {
+                const response = await fetch('/.netlify/functions/manage-qr', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ shortCode })
+                });
+
+                if (!response.ok) {
+                    throw new Error('销毁失败');
+                }
+
+                alert('二维码已成功销毁！');
+                loadActiveQRs(); // 刷新列表
+
+            } catch (error) {
+                console.error('销毁二维码失败:', error);
+                alert('销毁失败: ' + error.message);
+            }
+        }
+
+        // 清除所有
+        function clearAll() {
+            console.log('清除所有数据');
+            
+            // 重置变量
+            currentQRData = null;
+            
+            // 重置界面
+            document.getElementById('contentInput').value = '';
+            document.getElementById('qrContainer').innerHTML = '<div class="qr-placeholder">点击"生成二维码"按钮开始</div>';
+            document.getElementById('urlDisplay').style.display = 'none';
+            document.getElementById('downloadBtn').style.display = 'none';
+
+            // 重置时间选择
+            document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelector('.time-btn[data-minutes="20"]').classList.add('active');
+            document.getElementById('customTime').classList.remove('show');
+            selectedMinutes = 20;
+        }
+
+        // 初始化事件监听器
+        function initEventListeners() {
+            // 生成按钮
+            document.getElementById('generateBtn').addEventListener('click', generateQR);
+            
+            // 下载按钮
+            document.getElementById('downloadBtn').addEventListener('click', downloadQR);
+            
+            // 清除按钮
+            document.getElementById('clearBtn').addEventListener('click', clearAll);
+
+            // 回车键生成二维码
+            document.getElementById('contentInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    generateQR();
+                }
+            });
+        }
+
+        // 页面加载完成后的初始化
+        window.addEventListener('load', function() {
+            console.log('页面加载完成');
+            
+            // 初始化所有功能
+            initTimeButtons();
+            initCustomTimeInput();
+            initEventListeners();
+            loadActiveQRs(); // 加载活跃的二维码列表
+            
+            // 设置定时刷新活跃列表（每30秒）
+            setInterval(loadActiveQRs, 30000);
+        });
+
+        // 页面卸载时清理资源
+        window.addEventListener('beforeunload', function() {
+            if (currentQRData && currentQRData.url) {
+                URL.revokeObjectURL(currentQRData.url);
+            }
+        });
+    </script>
+</body>
+</html>
