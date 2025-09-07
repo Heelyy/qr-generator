@@ -1,4 +1,3 @@
-// netlify/functions/create-qr.js
 const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
@@ -6,7 +5,18 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY
 );
 
-// 生成随机短码
+// 检测是否为URL
+function isValidURL(string) {
+  try {
+    const url = new URL(string);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch (_) {
+    // 也检测常见的URL格式（没有协议的）
+    const urlPattern = /^(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)/;
+    return urlPattern.test(string);
+  }
+}
+
 function generateShortCode() {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
@@ -16,7 +26,6 @@ function generateShortCode() {
   return result;
 }
 
-// 生成下一个名称
 async function getNextName() {
   const { data, error } = await supabase
     .from('qr_codes')
@@ -33,7 +42,6 @@ async function getNextName() {
   return `QR-${nextNumber}`;
 }
 
-// 清理过期记录
 async function cleanupExpired() {
   await supabase
     .from('qr_codes')
@@ -66,15 +74,45 @@ exports.handler = async (event, context) => {
 
     const { originalUrl, expiresInMinutes } = JSON.parse(event.body);
     
-    if (!originalUrl || !expiresInMinutes) {
+    if (!originalUrl) {
       return {
         statusCode: 400,
         headers,
-        body: JSON.stringify({ error: 'Missing required fields' })
+        body: JSON.stringify({ error: 'Missing originalUrl' })
       };
     }
 
-    // 生成唯一短码
+    // 检测内容类型
+    const isURL = isValidURL(originalUrl.trim());
+    
+    if (!isURL) {
+      // 文本内容：直接返回原文本，前端会直接生成包含文本的二维码
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          isText: true,
+          content: originalUrl,
+          message: '文本内容将直接编码到二维码中'
+        })
+      };
+    }
+
+    // URL内容：使用短链接系统
+    if (!expiresInMinutes) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Missing expiresInMinutes for URL' })
+      };
+    }
+
+    // 确保URL有协议
+    let processedUrl = originalUrl.trim();
+    if (!processedUrl.startsWith('http://') && !processedUrl.startsWith('https://')) {
+      processedUrl = 'https://' + processedUrl;
+    }
+
     let shortCode;
     let isUnique = false;
     let attempts = 0;
@@ -104,12 +142,11 @@ exports.handler = async (event, context) => {
     const host = event.headers.host || 'localhost';
     const protocol = event.headers['x-forwarded-proto'] || 'https';
 
-    // 保存到数据库
     const { data, error } = await supabase
       .from('qr_codes')
       .insert({
         short_code: shortCode,
-        original_url: originalUrl,
+        original_url: processedUrl,
         name: name,
         expires_at: expiresAt.toISOString()
       })
@@ -128,13 +165,16 @@ exports.handler = async (event, context) => {
       statusCode: 200,
       headers,
       body: JSON.stringify({
+        isText: false,
         shortCode,
         name,
         expiresAt: expiresAt.toISOString(),
-        qrUrl: `${protocol}://${host}/r/${shortCode}`
+        qrUrl: `${protocol}://${host}/article/${shortCode}`,
+        originalUrl: processedUrl
       })
     };
   } catch (error) {
+    console.error('Function error:', error);
     return {
       statusCode: 500,
       headers,
