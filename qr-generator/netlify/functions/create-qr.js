@@ -50,11 +50,60 @@ async function cleanupExpired() {
     .eq('is_active', true);
 }
 
+// 微信优化路径映射
+function getOptimizedPath(routeType, isWeChatEnv) {
+  const routes = {
+    go: '/go/',
+    share: '/share/',
+    link: '/link/',
+    view: '/view/',
+    article: '/article/', // 保持向后兼容
+  };
+  
+  // 微信环境下优先使用较短的路径
+  if (isWeChatEnv) {
+    const wechatOptimized = {
+      go: '/go/',
+      share: '/s/',
+      link: '/l/',
+      view: '/v/',
+      article: '/a/',
+    };
+    return wechatOptimized[routeType] || routes[routeType] || routes.go;
+  }
+  
+  return routes[routeType] || routes.go;
+}
+
+// 生成微信友好的URL
+function generateWeChatFriendlyUrl(protocol, host, path, shortCode) {
+  // 添加随机参数以避免缓存和模式识别
+  const timestamp = Date.now();
+  const randomParam = Math.random().toString(36).substring(2, 8);
+  
+  // 微信环境下使用更自然的URL结构
+  const baseUrl = `${protocol}://${host}${path}${shortCode}`;
+  
+  // 添加伪装参数使URL看起来更像正常文章链接
+  const disguiseParams = [
+    `?t=${timestamp}`,
+    `?from=timeline&isappinstalled=0`,
+    `?scene=23&srcid=${randomParam}`,
+    `?chksm=${randomParam}&scene=27`,
+  ];
+  
+  const randomDisguise = disguiseParams[Math.floor(Math.random() * disguiseParams.length)];
+  return baseUrl + randomDisguise;
+}
+
 exports.handler = async (event, context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    'Access-Control-Allow-Headers': 'Content-Type, User-Agent, X-Forwarded-For',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Cache-Control': 'no-cache, no-store, must-revalidate',
+    'Pragma': 'no-cache',
+    'Expires': '0'
   };
 
   if (event.httpMethod === 'OPTIONS') {
@@ -72,7 +121,12 @@ exports.handler = async (event, context) => {
   try {
     await cleanupExpired();
 
-    const { originalUrl, expiresInMinutes } = JSON.parse(event.body);
+    const { 
+      originalUrl, 
+      expiresInMinutes, 
+      routeType = 'go', 
+      isWeChatEnv = false 
+    } = JSON.parse(event.body);
     
     if (!originalUrl) {
       return {
@@ -141,6 +195,13 @@ exports.handler = async (event, context) => {
     const expiresAt = new Date(Date.now() + expiresInMinutes * 60 * 1000);
     const host = event.headers.host || 'localhost';
     const protocol = event.headers['x-forwarded-proto'] || 'https';
+    
+    // 获取优化路径
+    const optimizedPath = getOptimizedPath(routeType, isWeChatEnv);
+    
+    // 记录用户代理信息用于分析
+    const userAgent = event.headers['user-agent'] || '';
+    const isWeChatUA = userAgent.toLowerCase().includes('micromessenger');
 
     const { data, error } = await supabase
       .from('qr_codes')
@@ -148,18 +209,25 @@ exports.handler = async (event, context) => {
         short_code: shortCode,
         original_url: processedUrl,
         name: name,
-        expires_at: expiresAt.toISOString()
+        expires_at: expiresAt.toISOString(),
+        route_type: routeType,
+        is_wechat_optimized: isWeChatEnv || isWeChatUA,
+        user_agent: userAgent.substring(0, 500) // 限制长度
       })
       .select()
       .single();
 
     if (error) {
+      console.error('Database error:', error);
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ error: 'Database error' })
       };
     }
+
+    // 生成微信友好的URL
+    const qrUrl = generateWeChatFriendlyUrl(protocol, host, optimizedPath, shortCode);
 
     return {
       statusCode: 200,
@@ -169,8 +237,11 @@ exports.handler = async (event, context) => {
         shortCode,
         name,
         expiresAt: expiresAt.toISOString(),
-        qrUrl: `${protocol}://${host}/article/${shortCode}`,
-        originalUrl: processedUrl
+        qrUrl: qrUrl,
+        originalUrl: processedUrl,
+        routeType: routeType,
+        optimizedPath: optimizedPath,
+        isWeChatOptimized: isWeChatEnv || isWeChatUA
       })
     };
   } catch (error) {
@@ -178,7 +249,10 @@ exports.handler = async (event, context) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: 'Internal server error' })
+      body: JSON.stringify({ 
+        error: 'Internal server error',
+        message: error.message 
+      })
     };
   }
 };
