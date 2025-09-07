@@ -6,7 +6,7 @@
   node_bundler = "esbuild"
 
 [[redirects]]
-  from = "/r/:shortcode"
+  from = "/article/:shortcode"
   to = "/.netlify/functions/redirect/:shortcode"
   status = 200
 
