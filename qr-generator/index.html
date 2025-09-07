@@ -5,7 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>二维码生成器</title>
     <meta name="description" content="简单易用的二维码生成工具，支持微信扫描和时间控制">
+    <meta name="keywords" content="二维码,QR码,生成器,微信,扫描">
+    <meta name="author" content="QR Generator">
+    
+    <!-- 微信优化 Meta 标签 -->
+    <meta property="og:title" content="二维码生成器">
+    <meta property="og:description" content="简单易用的二维码生成工具">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://er4.netlify.app">
+    
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📱</text></svg>">
+    
+    <!-- 微信 JS-SDK -->
+    <script src="https://res.wx.qq.com/open/js/jweixin-1.6.0.js"></script>
+    
     <style>
         * {
             margin: 0;
@@ -43,6 +56,21 @@
             margin-bottom: 30px;
             font-size: 1.8em;
             font-weight: 600;
+        }
+
+        .wechat-notice {
+            background: linear-gradient(135deg, #e8f5e8 0%, #f0f8ff 100%);
+            border: 1px solid #4CAF50;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #2e7d32;
+            display: none;
+        }
+
+        .wechat-notice.show {
+            display: block;
         }
 
         .input-container {
@@ -86,6 +114,53 @@
         .mode-text {
             background: #f3e5f5;
             color: #7b1fa2;
+        }
+
+        .route-selector {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+        }
+
+        .route-selector.show {
+            display: block;
+        }
+
+        .route-selector label {
+            display: block;
+            margin-bottom: 10px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .route-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 10px;
+        }
+
+        .route-option {
+            padding: 8px 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            background: white;
+            color: #555;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 12px;
+            text-align: center;
+        }
+
+        .route-option.active {
+            border-color: #4CAF50;
+            background: #4CAF50;
+            color: white;
+        }
+
+        .route-option:hover {
+            border-color: #4CAF50;
         }
 
         .time-container {
@@ -403,6 +478,10 @@
                 flex: 1;
                 min-width: 80px;
             }
+
+            .route-options {
+                grid-template-columns: 1fr 1fr;
+            }
         }
     </style>
 </head>
@@ -410,6 +489,11 @@
     <div class="app">
         <div class="logo">📱</div>
         <h1>二维码生成器</h1>
+
+        <!-- 微信环境提示 -->
+        <div class="wechat-notice" id="wechatNotice">
+            🎯 检测到微信环境，已启用优化模式确保最佳兼容性
+        </div>
 
         <div class="input-container">
             <input 
@@ -420,6 +504,17 @@
             >
             <div class="mode-indicator" id="modeIndicator">
                 <span id="modeText">链接模式</span>
+            </div>
+        </div>
+
+        <!-- 路径选择器（仅链接模式显示） -->
+        <div class="route-selector" id="routeSelector">
+            <label>🔗 选择链接路径（微信优化）</label>
+            <div class="route-options">
+                <div class="route-option active" data-route="go">简洁路径 /go/</div>
+                <div class="route-option" data-route="share">分享路径 /share/</div>
+                <div class="route-option" data-route="link">链接路径 /link/</div>
+                <div class="route-option" data-route="view">查看路径 /view/</div>
             </div>
         </div>
 
@@ -479,6 +574,8 @@
             <div id="linkInfo" style="display:none;">
                 <strong>短链接：</strong><br>
                 <span id="shortUrl"></span><br><br>
+                <strong>路径模式：</strong><br>
+                <span id="routeMode"></span><br><br>
                 <strong>有效期至：</strong><br>
                 <span id="expiresAt"></span>
             </div>
@@ -499,9 +596,10 @@
             <h3>💡 使用说明</h3>
             <ul>
                 <li>自动识别：输入链接使用链接模式，输入文本使用文本模式</li>
+                <li>微信优化：多种路径模式提高微信兼容性，避免被拦截</li>
                 <li>链接模式：支持时间控制、统计、手动销毁等高级功能</li>
                 <li>文本模式：生成永久二维码，扫描直接显示文本</li>
-                <li>微信优化：链接使用伪装路径，避免被微信拦截</li>
+                <li>智能检测：自动检测微信环境并启用最佳设置</li>
             </ul>
         </div>
     </div>
@@ -510,7 +608,27 @@
         // 全局变量
         let currentQRData = null;
         let selectedMinutes = 20;
-        let currentMode = 'url'; // 'url' 或 'text'
+        let currentMode = 'url';
+        let selectedRoute = 'go';
+        let isWeChatEnv = false;
+
+        // 检测微信环境
+        function detectWeChatEnvironment() {
+            const ua = navigator.userAgent.toLowerCase();
+            isWeChatEnv = ua.includes('micromessenger');
+            
+            if (isWeChatEnv) {
+                document.getElementById('wechatNotice').classList.add('show');
+                console.log('微信环境检测成功，启用优化模式');
+                
+                // 微信环境下的额外优化
+                document.addEventListener('WeixinJSBridgeReady', function() {
+                    console.log('微信JS Bridge Ready');
+                });
+            }
+            
+            return isWeChatEnv;
+        }
 
         // 检测内容类型
         function detectContentType(content) {
@@ -526,6 +644,7 @@
             const timeContainer = document.getElementById('timeContainer');
             const timeNotice = document.getElementById('timeNotice');
             const timeButtons = document.querySelectorAll('.time-btn');
+            const routeSelector = document.getElementById('routeSelector');
 
             currentMode = mode;
 
@@ -534,12 +653,26 @@
                 modeText.textContent = '链接模式';
                 timeButtons.forEach(btn => btn.disabled = false);
                 timeNotice.classList.remove('show');
+                routeSelector.classList.add('show');
             } else {
                 modeIndicator.className = 'mode-indicator mode-text';
                 modeText.textContent = '文本模式';
                 timeButtons.forEach(btn => btn.disabled = true);
                 timeNotice.classList.add('show');
+                routeSelector.classList.remove('show');
             }
+        }
+
+        // 初始化路径选择器
+        function initRouteSelector() {
+            document.querySelectorAll('.route-option').forEach(option => {
+                option.addEventListener('click', function() {
+                    document.querySelectorAll('.route-option').forEach(opt => opt.classList.remove('active'));
+                    this.classList.add('active');
+                    selectedRoute = this.dataset.route;
+                    console.log('选择路径模式:', selectedRoute);
+                });
+            });
         }
 
         // 初始化时间选择按钮
@@ -593,7 +726,7 @@
         }
 
         // 生成链接二维码（管理模式）
-        async function generateUrlQR(content, size, expiresInMinutes) {
+        async function generateUrlQR(content, size, expiresInMinutes, routeType) {
             // 调用后端API创建二维码记录
             const response = await fetch('/.netlify/functions/create-qr', {
                 method: 'POST',
@@ -602,7 +735,9 @@
                 },
                 body: JSON.stringify({
                     originalUrl: content,
-                    expiresInMinutes: expiresInMinutes
+                    expiresInMinutes: expiresInMinutes,
+                    routeType: routeType,
+                    isWeChatEnv: isWeChatEnv
                 })
             });
 
@@ -655,7 +790,7 @@
                         return;
                     }
                     
-                    const result = await generateUrlQR(content, size, selectedMinutes);
+                    const result = await generateUrlQR(content, size, selectedMinutes, selectedRoute);
                     blob = result.blob;
                     qrData = result.data;
                 } else {
@@ -689,6 +824,7 @@
                     
                     if (mode === 'url' && qrData) {
                         document.getElementById('shortUrl').textContent = qrData.qrUrl;
+                        document.getElementById('routeMode').textContent = `/${selectedRoute}/ 路径`;
                         document.getElementById('expiresAt').textContent = new Date(qrData.expiresAt).toLocaleString('zh-CN');
                         document.getElementById('linkInfo').style.display = 'block';
                         document.getElementById('textInfo').style.display = 'none';
@@ -840,6 +976,11 @@
             document.getElementById('customTime').classList.remove('show');
             selectedMinutes = 20;
             
+            // 重置路径选择
+            document.querySelectorAll('.route-option').forEach(opt => opt.classList.remove('active'));
+            document.querySelector('.route-option[data-route="go"]').classList.add('active');
+            selectedRoute = 'go';
+            
             // 重置模式显示
             updateModeDisplay('');
         }
@@ -863,19 +1004,79 @@
             });
         }
 
+        // 微信环境优化
+        function optimizeForWeChat() {
+            if (!isWeChatEnv) return;
+            
+            // 禁用右键菜单（防止长按保存图片）
+            document.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+            });
+            
+            // 优化触摸事件
+            document.addEventListener('touchstart', function() {}, { passive: true });
+            
+            // 微信分享优化
+            if (typeof WeixinJSBridge !== 'undefined') {
+                WeixinJSBridge.on('menu:share:appmessage', function(argv) {
+                    console.log('微信分享到朋友');
+                });
+                
+                WeixinJSBridge.on('menu:share:timeline', function(argv) {
+                    console.log('微信分享到朋友圈');
+                });
+            }
+        }
+
+        // 错误处理和重试机制
+        function handleNetworkError(error, retryFunction, maxRetries = 3) {
+            let attempts = 0;
+            
+            const attemptRetry = () => {
+                attempts++;
+                if (attempts < maxRetries) {
+                    console.log(`网络错误，第${attempts}次重试...`);
+                    setTimeout(() => {
+                        retryFunction().catch(() => attemptRetry());
+                    }, 1000 * attempts);
+                } else {
+                    console.error('重试次数超限，操作失败:', error);
+                    alert('网络连接异常，请检查网络后重试');
+                }
+            };
+            
+            attemptRetry();
+        }
+
         // 页面加载完成后的初始化
         window.addEventListener('load', function() {
-            console.log('页面加载完成 - 增强版双模式');
+            console.log('页面加载完成 - 微信优化版');
+            
+            // 检测微信环境
+            detectWeChatEnvironment();
             
             // 初始化所有功能
+            initRouteSelector();
             initTimeButtons();
             initCustomTimeInput();
             initContentInput();
             initEventListeners();
-            loadActiveQRs(); // 加载活跃的二维码列表
+            
+            // 微信环境优化
+            optimizeForWeChat();
+            
+            // 加载活跃的二维码列表
+            loadActiveQRs();
             
             // 设置定时刷新活跃列表（每30秒）
             setInterval(loadActiveQRs, 30000);
+            
+            // 页面可见性变化时刷新
+            document.addEventListener('visibilitychange', function() {
+                if (!document.hidden) {
+                    loadActiveQRs();
+                }
+            });
         });
 
         // 页面卸载时清理资源
@@ -883,6 +1084,15 @@
             if (currentQRData && currentQRData.url) {
                 URL.revokeObjectURL(currentQRData.url);
             }
+        });
+
+        // 全局错误处理
+        window.addEventListener('error', function(e) {
+            console.error('全局错误:', e.error);
+        });
+
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('未处理的Promise拒绝:', e.reason);
         });
     </script>
 </body>
