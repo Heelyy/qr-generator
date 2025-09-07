@@ -67,6 +67,27 @@
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
 
+        .mode-indicator {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .mode-url {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .mode-text {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
         .time-container {
             margin-bottom: 25px;
         }
@@ -107,12 +128,32 @@
             border-color: #667eea;
         }
 
+        .time-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         .custom-time {
             display: none;
             margin-top: 10px;
         }
 
         .custom-time.show {
+            display: block;
+        }
+
+        .time-notice {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 10px;
+            font-size: 14px;
+            color: #856404;
+            display: none;
+        }
+
+        .time-notice.show {
             display: block;
         }
 
@@ -377,10 +418,13 @@
                 placeholder="输入链接或文本内容..."
                 value="https://mp.weixin.qq.com/s/An_W_ekg6eyrdwOrN2yqvw"
             >
+            <div class="mode-indicator" id="modeIndicator">
+                <span id="modeText">链接模式</span>
+            </div>
         </div>
 
-        <div class="time-container">
-            <label>⏰ 有效时间</label>
+        <div class="time-container" id="timeContainer">
+            <label>⏰ 有效时间（仅链接模式）</label>
             <div class="time-buttons">
                 <button type="button" class="time-btn" data-minutes="5">5分钟</button>
                 <button type="button" class="time-btn active" data-minutes="20">20分钟</button>
@@ -390,6 +434,9 @@
             </div>
             <div class="custom-time" id="customTime">
                 <input type="number" id="customMinutes" placeholder="输入分钟数..." min="1" max="1440">
+            </div>
+            <div class="time-notice" id="timeNotice">
+                📝 文本模式：二维码永久有效，直接包含文本内容
             </div>
         </div>
 
@@ -426,16 +473,23 @@
         </div>
 
         <div id="urlDisplay" class="url-display" style="display:none;">
-            <strong>当前内容：</strong><br>
+            <strong>生成模式：</strong><span id="generatedMode">链接模式</span><br>
+            <strong>原始内容：</strong><br>
             <span id="currentContent"></span><br><br>
-            <strong>短链接：</strong><br>
-            <span id="shortUrl"></span><br><br>
-            <strong>有效期至：</strong><br>
-            <span id="expiresAt"></span>
+            <div id="linkInfo" style="display:none;">
+                <strong>短链接：</strong><br>
+                <span id="shortUrl"></span><br><br>
+                <strong>有效期至：</strong><br>
+                <span id="expiresAt"></span>
+            </div>
+            <div id="textInfo" style="display:none;">
+                <strong>类型：</strong>永久文本二维码<br>
+                <strong>说明：</strong>扫描后直接显示文本内容
+            </div>
         </div>
 
         <div class="active-qrs" id="activeQRs">
-            <h3>🎯 活跃的二维码</h3>
+            <h3>🎯 活跃的链接二维码</h3>
             <div id="qrList">
                 <div class="qr-placeholder">正在加载...</div>
             </div>
@@ -444,23 +498,56 @@
         <div class="tips">
             <h3>💡 使用说明</h3>
             <ul>
-                <li>设置有效时间，到期后二维码自动失效</li>
-                <li>可以手动销毁不需要的二维码</li>
-                <li>支持扫描统计和时间记录</li>
-                <li>微信扫描二维码即可打开链接</li>
+                <li>自动识别：输入链接使用链接模式，输入文本使用文本模式</li>
+                <li>链接模式：支持时间控制、统计、手动销毁等高级功能</li>
+                <li>文本模式：生成永久二维码，扫描直接显示文本</li>
+                <li>微信优化：链接使用伪装路径，避免被微信拦截</li>
             </ul>
         </div>
     </div>
 
-    <script>
+<script>
         // 全局变量
         let currentQRData = null;
-        let selectedMinutes = 20; // 默认20分钟
+        let selectedMinutes = 20;
+        let currentMode = 'url'; // 'url' 或 'text'
+
+        // 检测内容类型
+        function detectContentType(content) {
+            const urlPattern = /^https?:\/\/.+/i;
+            return urlPattern.test(content.trim()) ? 'url' : 'text';
+        }
+
+        // 更新模式显示
+        function updateModeDisplay(content) {
+            const mode = detectContentType(content);
+            const modeIndicator = document.getElementById('modeIndicator');
+            const modeText = document.getElementById('modeText');
+            const timeContainer = document.getElementById('timeContainer');
+            const timeNotice = document.getElementById('timeNotice');
+            const timeButtons = document.querySelectorAll('.time-btn');
+
+            currentMode = mode;
+
+            if (mode === 'url') {
+                modeIndicator.className = 'mode-indicator mode-url';
+                modeText.textContent = '链接模式';
+                timeButtons.forEach(btn => btn.disabled = false);
+                timeNotice.classList.remove('show');
+            } else {
+                modeIndicator.className = 'mode-indicator mode-text';
+                modeText.textContent = '文本模式';
+                timeButtons.forEach(btn => btn.disabled = true);
+                timeNotice.classList.add('show');
+            }
+        }
 
         // 初始化时间选择按钮
         function initTimeButtons() {
             document.querySelectorAll('.time-btn').forEach(btn => {
                 btn.addEventListener('click', function() {
+                    if (this.disabled) return;
+                    
                     document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
                     this.classList.add('active');
                     
@@ -483,7 +570,62 @@
             });
         }
 
-        // 生成二维码
+        // 输入内容变化监听
+        function initContentInput() {
+            const contentInput = document.getElementById('contentInput');
+            contentInput.addEventListener('input', function() {
+                updateModeDisplay(this.value);
+            });
+            
+            // 初始化显示
+            updateModeDisplay(contentInput.value);
+        }
+
+        // 生成文本二维码（直接模式）
+        function generateTextQR(content, size) {
+            const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&format=png&data=${encodeURIComponent(content)}`;
+            
+            return fetch(qrApiUrl)
+                .then(response => {
+                    if (!response.ok) throw new Error('生成失败');
+                    return response.blob();
+                });
+        }
+
+        // 生成链接二维码（管理模式）
+        async function generateUrlQR(content, size, expiresInMinutes) {
+            // 调用后端API创建二维码记录
+            const response = await fetch('/.netlify/functions/create-qr', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    originalUrl: content,
+                    expiresInMinutes: expiresInMinutes
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`服务器错误: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('后端响应:', data);
+
+            // 生成二维码图片
+            const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&format=png&data=${encodeURIComponent(data.qrUrl)}`;
+            
+            const imgResponse = await fetch(qrApiUrl);
+            if (!imgResponse.ok) {
+                throw new Error('二维码图片生成失败');
+            }
+
+            const blob = await imgResponse.blob();
+            return { blob, data };
+        }
+
+        // 主生成函数
         async function generateQR() {
             const content = document.getElementById('contentInput').value.trim();
             const size = document.getElementById('sizeSelect').value;
@@ -497,49 +639,34 @@
                 return;
             }
 
-            if (!selectedMinutes || selectedMinutes < 1) {
-                alert('请选择有效时间！');
-                return;
-            }
-
             // 显示加载状态
             loading.classList.add('show');
             generateBtn.disabled = true;
             qrContainer.innerHTML = '<div class="qr-placeholder">正在生成...</div>';
 
             try {
-                // 调用后端API创建二维码记录
-                const response = await fetch('/.netlify/functions/create-qr', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        originalUrl: content,
-                        expiresInMinutes: selectedMinutes
-                    })
-                });
+                const mode = detectContentType(content);
+                let blob, qrData = null;
 
-                if (!response.ok) {
-                    throw new Error(`服务器错误: ${response.status}`);
+                if (mode === 'url') {
+                    // 链接模式：使用管理系统
+                    if (!selectedMinutes || selectedMinutes < 1) {
+                        alert('请选择有效时间！');
+                        return;
+                    }
+                    
+                    const result = await generateUrlQR(content, size, selectedMinutes);
+                    blob = result.blob;
+                    qrData = result.data;
+                } else {
+                    // 文本模式：直接生成
+                    blob = await generateTextQR(content, size);
                 }
-
-                const data = await response.json();
-                console.log('后端响应:', data);
-
-                // 生成二维码图片
-                const qrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&format=png&data=${encodeURIComponent(data.qrUrl)}`;
-                
-                const imgResponse = await fetch(qrApiUrl);
-                if (!imgResponse.ok) {
-                    throw new Error('二维码图片生成失败');
-                }
-
-                const blob = await imgResponse.blob();
-                const imageUrl = URL.createObjectURL(blob);
 
                 // 显示二维码
+                const imageUrl = URL.createObjectURL(blob);
                 const img = new Image();
+                
                 img.onload = function() {
                     loading.classList.remove('show');
                     generateBtn.disabled = false;
@@ -553,18 +680,28 @@
                     // 保存数据用于下载
                     currentQRData = {
                         blob: blob,
-                        name: data.name
+                        name: qrData ? qrData.name : `文本二维码-${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}`
                     };
 
                     // 显示信息
                     document.getElementById('currentContent').textContent = content;
-                    document.getElementById('shortUrl').textContent = data.qrUrl;
-                    document.getElementById('expiresAt').textContent = new Date(data.expiresAt).toLocaleString('zh-CN');
+                    document.getElementById('generatedMode').textContent = mode === 'url' ? '链接模式' : '文本模式';
+                    
+                    if (mode === 'url' && qrData) {
+                        document.getElementById('shortUrl').textContent = qrData.qrUrl;
+                        document.getElementById('expiresAt').textContent = new Date(qrData.expiresAt).toLocaleString('zh-CN');
+                        document.getElementById('linkInfo').style.display = 'block';
+                        document.getElementById('textInfo').style.display = 'none';
+                        
+                        // 刷新活跃列表
+                        loadActiveQRs();
+                    } else {
+                        document.getElementById('linkInfo').style.display = 'none';
+                        document.getElementById('textInfo').style.display = 'block';
+                    }
+                    
                     urlDisplay.style.display = 'block';
                     document.getElementById('downloadBtn').style.display = 'inline-block';
-
-                    // 刷新活跃列表
-                    loadActiveQRs();
                 };
 
                 img.onerror = function() {
@@ -610,7 +747,7 @@
             }
         }
 
-        // 加载活跃的二维码
+        // 加载活跃的二维码（仅链接模式）
         async function loadActiveQRs() {
             try {
                 const response = await fetch('/.netlify/functions/manage-qr');
@@ -622,7 +759,7 @@
                 const qrList = document.getElementById('qrList');
 
                 if (!qrCodes || qrCodes.length === 0) {
-                    qrList.innerHTML = '<div class="qr-placeholder">暂无活跃的二维码</div>';
+                    qrList.innerHTML = '<div class="qr-placeholder">暂无活跃的链接二维码</div>';
                     return;
                 }
 
@@ -702,6 +839,9 @@
             document.querySelector('.time-btn[data-minutes="20"]').classList.add('active');
             document.getElementById('customTime').classList.remove('show');
             selectedMinutes = 20;
+            
+            // 重置模式显示
+            updateModeDisplay('');
         }
 
         // 初始化事件监听器
@@ -725,11 +865,12 @@
 
         // 页面加载完成后的初始化
         window.addEventListener('load', function() {
-            console.log('页面加载完成');
+            console.log('页面加载完成 - 增强版双模式');
             
             // 初始化所有功能
             initTimeButtons();
             initCustomTimeInput();
+            initContentInput();
             initEventListeners();
             loadActiveQRs(); // 加载活跃的二维码列表
             
