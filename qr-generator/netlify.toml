@@ -4,16 +4,121 @@
 
 [functions]
   node_bundler = "esbuild"
+  # 优化为亚太地区部署
+  included_files = ["node_modules/@supabase/supabase-js/**/*"]
 
+# 微信优化路由 - 多种路径格式支持
+[[redirects]]
+  from = "/go/:shortcode"
+  to = "/.netlify/functions/redirect/:shortcode"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/share/:shortcode"
+  to = "/.netlify/functions/redirect/:shortcode"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/s/:shortcode"
+  to = "/.netlify/functions/redirect/:shortcode"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/link/:shortcode"
+  to = "/.netlify/functions/redirect/:shortcode"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/l/:shortcode"
+  to = "/.netlify/functions/redirect/:shortcode"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/view/:shortcode"
+  to = "/.netlify/functions/redirect/:shortcode"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/v/:shortcode"
+  to = "/.netlify/functions/redirect/:shortcode"
+  status = 200
+  force = true
+
+# 保持向后兼容
 [[redirects]]
   from = "/article/:shortcode"
   to = "/.netlify/functions/redirect/:shortcode"
   status = 200
+  force = true
 
+[[redirects]]
+  from = "/a/:shortcode"
+  to = "/.netlify/functions/redirect/:shortcode"
+  status = 200
+  force = true
+
+# SPA回退路由
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
 
+# 微信优化的安全头部
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    X-XSS-Protection = "1; mode=block"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+
+# API路由的缓存控制
+[[headers]]
+  for = "/.netlify/functions/*"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Pragma = "no-cache"
+    Expires = "0"
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Headers = "Content-Type, User-Agent, X-Forwarded-For"
+    Access-Control-Allow-Methods = "GET, POST, DELETE, OPTIONS"
+
+# 静态资源优化
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000"
+
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000"
+
+[[headers]]
+  for = "/*.png"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000"
+
+[[headers]]
+  for = "/*.jpg"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000"
+
+# 构建环境配置
 [build.environment]
   NODE_VERSION = "18"
+  NPM_FLAGS = "--legacy-peer-deps"
+
+# 函数配置
+[functions]
+  # 增加超时时间以支持数据库操作
+  timeout = 30
+  # 优化内存使用
+  memory = 512
