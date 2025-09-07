@@ -6,6 +6,10 @@
   node_bundler = "esbuild"
   # 优化为亚太地区部署
   included_files = ["node_modules/@supabase/supabase-js/**/*"]
+  # 增加超时时间以支持数据库操作
+  timeout = 30
+  # 优化内存使用
+  memory = 512
 
 # 微信优化路由 - 多种路径格式支持
 [[redirects]]
@@ -115,10 +119,3 @@
 [build.environment]
   NODE_VERSION = "18"
   NPM_FLAGS = "--legacy-peer-deps"
-
-# 函数配置
-[functions]
-  # 增加超时时间以支持数据库操作
-  timeout = 30
-  # 优化内存使用
-  memory = 512
